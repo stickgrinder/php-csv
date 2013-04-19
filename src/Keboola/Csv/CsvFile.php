@@ -13,21 +13,24 @@ class CsvFile extends \SplFileInfo implements \Iterator
 {
 	const DEFAULT_DELIMITER = ',';
 	const DEFAULT_ENCLOSURE = '"';
+	const DEFAULT_GET_ASSOC = false;
 
 	protected $_delimiter;
 	protected $_enclosure;
+	protected $_getAssoc;
 
 	protected $_filePointer;
 	protected $_rowCounter = 0;
 	protected $_currentRow;
 	protected $_lineBreak;
 
-	public function __construct($fileName, $delimiter = self::DEFAULT_DELIMITER, $enclosure = self::DEFAULT_ENCLOSURE)
+	public function __construct($fileName, $delimiter = self::DEFAULT_DELIMITER, $enclosure = self::DEFAULT_ENCLOSURE, $getAssoc = self:DEFAULT_GET_ASSOC)
 	{
 		parent::__construct($fileName);
 
 		$this->_setDelimiter($delimiter);
 		$this->_setEnclosure($enclosure);
+		$this->_setGetAssoc($getAssoc);
 
 	}
 
@@ -88,8 +91,18 @@ class CsvFile extends \SplFileInfo implements \Iterator
 				Exception::INVALID_PARAM, NULL, 'invalidParam');
 		}
 	}
-
-
+	
+	/**
+	 * @param $getAssoc
+	 * @return CsvFile
+	 */
+	protected  function _setGetAssoc($getAssoc)
+	{
+		$this->_getAssoc = (false!=$getAssoc);
+		$this->stashHeader();
+		return $this;
+	}
+	
 	public function getColumnsCount()
 	{
 		return count($this->getHeader());
@@ -104,6 +117,11 @@ class CsvFile extends \SplFileInfo implements \Iterator
 		}
 
 		return array();
+	}
+	
+	public function stashHeader()
+	{
+		$this->_header = $this->getHeader();
 	}
 
 	public function writeRow(array $row)
@@ -243,6 +261,7 @@ class CsvFile extends \SplFileInfo implements \Iterator
 		rewind($this->_getFilePointer());
 		$this->_currentRow = $this->_readLine();
 		$this->_rowCounter = 0;
+		if ($this->_getAssoc) $this->_rowCounter++; // ignore header
 	}
 
 	protected function _readLine()
@@ -251,7 +270,11 @@ class CsvFile extends \SplFileInfo implements \Iterator
 
 		// allow empty enclosure hack
 		$enclosure = !$this->getEnclosure() ? chr(0) : $this->getEnclosure();
-		return fgetcsv($this->_getFilePointer(), null, $this->getDelimiter(), $enclosure, '"');
+		$result = fgetcsv($this->_getFilePointer(), null, $this->getDelimiter() ,$enclosure, '"');
+		if ($this->_getAssoc) {
+			return array_combine($this->header, $result);
+		}
+		return $result;
 	}
 
 	protected function _getFilePointer($mode = 'r')
